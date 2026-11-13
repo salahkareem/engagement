@@ -33,6 +33,7 @@
     --serif: "Cormorant Garamond", Georgia, serif;
     --ease: cubic-bezier(.2, .7, .2, 1);
     --ui: var(--wine);
+    --ui-inv: var(--paper);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; overflow: hidden; }
@@ -222,18 +223,29 @@
   .dots button { width: 14px; height: 14px; display: grid; place-items: center; }
   .dots button::after { content: ""; width: 5px; height: 5px; border-radius: 50%; border: 1px solid var(--ui); transition: background .5s ease, transform .5s ease; }
   .dots button.on::after { background: var(--ui); transform: scale(1.3); }
+  /* loud until the guest has moved once, then it settles into a quiet marker */
   .cue {
-    position: absolute; z-index: 5; left: 50%; bottom: max(16px, 2.4svh); transform: translateX(-50%);
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
-    color: var(--ui); font-size: 10px; letter-spacing: .3em; text-transform: uppercase; font-weight: 500;
-    opacity: 0; transition: opacity 1s ease 1.6s, color .8s ease;
+    position: absolute; z-index: 5; left: 50%; bottom: max(18px, 3svh); transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px; padding: 11px 20px 11px 16px; border-radius: 999px;
+    background: var(--ui); color: var(--ui-inv); white-space: nowrap;
+    font-size: 11.5px; letter-spacing: .24em; text-transform: uppercase; font-weight: 600;
+    box-shadow: 0 8px 22px rgba(46, 7, 13, .28);
+    opacity: 0; transition: opacity 1s ease 1.6s, background .8s ease, color .8s ease, box-shadow .8s ease;
+    animation: cueBob 1.8s ease-in-out infinite;
   }
-  .cue svg { width: 16px; height: 16px; animation: nudge 2.2s ease-in-out infinite; }
-  @keyframes nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+  .cue svg { width: 16px; height: 16px; }
+  .cue.down svg { transform: rotate(180deg); }
+  .cue svg path { animation: chev 1.8s ease-in-out infinite; }
+  .cue svg path:first-child { animation-delay: .25s; }
+  @keyframes cueBob { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, -7px); } }
+  @keyframes chev { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
   .deck.ready .dots { opacity: 1; }
-  .deck.ready .cue { opacity: .8; }
+  .deck.ready .cue { opacity: 1; }
+  .deck.swiped .cue { background: transparent; color: var(--ui); box-shadow: none; }
   .deck.ready.last .cue { opacity: 0; pointer-events: none; transition-delay: 0s; }
-  .deck[data-tone="dark"] { --ui: var(--cream); }
+  .deck[data-tone="dark"] { --ui: var(--cream); --ui-inv: var(--wine); }
+  .scene.peek { animation: peek 1.6s cubic-bezier(.45, 0, .3, 1); }
+  @keyframes peek { 0%, 100% { transform: none; } 38% { transform: translateY(-46px); } 58% { transform: translateY(-34px); } 74% { transform: translateY(-46px); } }
 
   :focus-visible { outline: 1px solid var(--gold); outline-offset: 4px; }
   @media (prefers-reduced-motion: reduce) {
@@ -312,8 +324,8 @@
       </section>
 
       <nav class="dots" id="dots" aria-label="Sections"></nav>
-      <button class="cue" id="cue" aria-label="Next">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M5 15l7-7 7 7"/></svg>Swipe up
+      <button class="cue" id="cue" aria-label="Next page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12l6-6 6 6"/><path d="M6 19l6-6 6 6"/></svg><span id="cueText">Swipe up</span>
       </button>
     </div>
   </main>
@@ -373,6 +385,7 @@
   function go(n, force) {
     n = Math.max(0, Math.min(scenes.length - 1, n));
     if (n === idx || (locked && !force)) return;
+    if (idx !== -1 && !deck.classList.contains("swiped")) { deck.classList.add("swiped"); clearInterval(peekTimer); scenes[0].classList.remove("peek"); }
     idx = n; locked = true;
     scenes.forEach((s, i) => s.classList.toggle("active", i === n));
     [...dots.children].forEach((d, i) => d.classList.toggle("on", i === n));
@@ -394,6 +407,14 @@
     if (["ArrowUp", "PageUp", "ArrowLeft"].includes(e.key)) go(idx - 1);
   });
   $("#cue").addEventListener("click", () => go(idx + 1));
+  // a tap on any empty part of the page also moves on
+  col.addEventListener("click", e => { if (!e.target.closest("a, button, iframe, .map")) go(idx + 1); });
+  if (matchMedia("(hover: hover) and (pointer: fine)").matches) { $("#cueText").textContent = "Scroll down"; $("#cue").classList.add("down"); }
+  // until the first swipe, lift the page now and then to show there is more underneath
+  const peekTimer = setInterval(() => {
+    if (idx !== 0 || locked || !deck.classList.contains("ready")) return;
+    const s = scenes[0]; s.classList.remove("peek"); void s.offsetWidth; s.classList.add("peek");
+  }, 5000);
 
   // ================= intro: envelope -> invitation card =================
   const intro = $("#intro"), env = $("#envelope"), letter = $("#letter");
